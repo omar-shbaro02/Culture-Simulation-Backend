@@ -37,7 +37,7 @@ app.add_middleware(
 )
 
 
-@app.api_route("/health", methods=["GET", "HEAD"], tags=["Health"])
+@app.head("/health", status_code=status.HTTP_200_OK, tags=["Health"])
 def health_check():
     return Response(status_code=status.HTTP_200_OK)
 
