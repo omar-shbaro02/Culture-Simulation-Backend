@@ -20,9 +20,11 @@ from app.api.v1.endpoints.strategy import router as strategy_router
 from app.api.v1.endpoints.dimension_state import router as dimension_state_router
 from app.api.v1.endpoints.chat import router as chat_router
 from app.api.v1.endpoints.employee_checkin import router as employee_checkin_router
+from app.api.v1.endpoints.health import router as health_router
 
 router = APIRouter()
 
+router.include_router(health_router)
 router.include_router(auth_router)
 
 # /v1/analyze

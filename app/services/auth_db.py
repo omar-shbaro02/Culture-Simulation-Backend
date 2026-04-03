@@ -8,7 +8,8 @@ from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
 from uuid import uuid4
 
-DB_PATH = Path(__file__).resolve().parents[2] / "culture_sim.db"
+DEFAULT_DB_PATH = Path(__file__).resolve().parents[2] / "culture_sim.db"
+DB_PATH = Path(os.getenv("AUTH_DB_PATH", str(DEFAULT_DB_PATH))).expanduser()
 SESSION_DURATION_DAYS = 30
 
 
@@ -37,6 +38,7 @@ def _row_to_user(row: sqlite3.Row | None) -> Optional[Dict[str, Any]]:
 
 @contextmanager
 def get_connection() -> Iterator[sqlite3.Connection]:
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     try:

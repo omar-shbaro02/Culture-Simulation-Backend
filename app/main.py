@@ -1,6 +1,6 @@
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from app.api.v1.router import router
@@ -10,11 +10,20 @@ load_dotenv()
 
 app = FastAPI(title="Culture Simulation v2")
 
+default_frontend_origins = ",".join(
+    [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://culturesim.netlify.app",
+        "https://culturesim.vaisolutions.ai",
+    ]
+)
+
 frontend_origins = [
     origin.strip()
     for origin in os.getenv(
         "FRONTEND_ORIGINS",
-        "http://localhost:5173,http://127.0.0.1:5173",
+        default_frontend_origins,
     ).split(",")
     if origin.strip()
 ]
@@ -26,6 +35,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.api_route("/health", methods=["GET", "HEAD"], tags=["Health"])
+def health_check():
+    return Response(status_code=status.HTTP_200_OK)
+
 
 app.include_router(router, prefix="/v1")
 
