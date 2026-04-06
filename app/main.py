@@ -3,10 +3,11 @@ import os
 from fastapi import FastAPI, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from app.api.v1.router import router
-from app.services.auth_db import init_auth_db
 
 load_dotenv()
+
+from app.api.v1.router import router
+from app.services.auth_db import init_auth_db
 
 app = FastAPI(title="Culture Simulation v2")
 
@@ -46,5 +47,5 @@ app.include_router(router, prefix="/v1")
 
 
 @app.on_event("startup")
-def startup():
-    init_auth_db()
+async def startup():
+    await init_auth_db()

@@ -2,18 +2,19 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel, Field
-import sqlite3
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.auth_db import (
     create_session,
     create_user,
     delete_session,
     get_user_by_session,
-    init_auth_db,
     list_users,
     update_user_access,
     verify_user_credentials,
 )
+from db.database import get_db_session
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -54,11 +55,12 @@ def _extract_token(authorization: str | None) -> str:
     return token
 
 
-def require_auth(
+async def require_auth(
     authorization: Annotated[str | None, Header()] = None,
+    db: AsyncSession = Depends(get_db_session),
 ):
     token = _extract_token(authorization)
-    user = get_user_by_session(token)
+    user = await get_user_by_session(db, token)
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -95,11 +97,10 @@ def require_management(user=Depends(require_auth)):
 
 
 @router.post("/signup")
-async def signup(payload: AuthCredentials):
-    init_auth_db()
+async def signup(payload: AuthCredentials, db: AsyncSession = Depends(get_db_session)):
     try:
-        user = create_user(_validate_email(payload.email), payload.password)
-    except sqlite3.IntegrityError:
+        user = await create_user(db, _validate_email(payload.email), payload.password)
+    except IntegrityError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="An account with this email already exists.",
@@ -116,8 +117,8 @@ async def signup(payload: AuthCredentials):
 
 
 @router.post("/login")
-async def login(payload: AuthCredentials):
-    user = verify_user_credentials(_validate_email(payload.email), payload.password)
+async def login(payload: AuthCredentials, db: AsyncSession = Depends(get_db_session)):
+    user = await verify_user_credentials(db, _validate_email(payload.email), payload.password)
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -134,8 +135,8 @@ async def login(payload: AuthCredentials):
             detail="Your account does not have an assigned access role yet.",
         )
 
-    token = create_session(int(user["id"]))
-    refreshed_user = get_user_by_session(token) or user
+    token = await create_session(db, int(user["id"]))
+    refreshed_user = await get_user_by_session(db, token) or user
     return {"token": token, "user": refreshed_user}
 
 
@@ -148,20 +149,27 @@ async def me(user=Depends(require_auth)):
 async def logout(
     authorization: Annotated[str | None, Header()] = None,
     _user=Depends(require_auth),
+    db: AsyncSession = Depends(get_db_session),
 ):
     token = _extract_token(authorization)
-    delete_session(token)
+    await delete_session(db, token)
     return {"ok": True}
 
 
 @router.get("/users")
-async def users(_admin=Depends(require_admin)):
-    return {"users": list_users()}
+async def users(_admin=Depends(require_admin), db: AsyncSession = Depends(get_db_session)):
+    return {"users": await list_users(db)}
 
 
 @router.patch("/users/{user_id}/approval")
-async def set_approval(user_id: int, payload: ApprovalUpdate, _admin=Depends(require_admin)):
-    user = update_user_access(
+async def set_approval(
+    user_id: int,
+    payload: ApprovalUpdate,
+    _admin=Depends(require_admin),
+    db: AsyncSession = Depends(get_db_session),
+):
+    user = await update_user_access(
+        db,
         user_id,
         payload.approved,
         payload.is_employee,
