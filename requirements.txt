@@ -6,3 +6,4 @@ pydantic==2.12.5
 httpx==0.28.1
 sqlalchemy==2.0.43
 asyncpg==0.30.0
+greenlet==3.2.4
