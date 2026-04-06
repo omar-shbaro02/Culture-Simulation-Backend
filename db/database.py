@@ -1,5 +1,6 @@
 import os
 from typing import AsyncIterator
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from dotenv import load_dotenv
 from sqlalchemy import text
@@ -15,6 +16,22 @@ def normalize_database_url(url: str) -> str:
         normalized = normalized.replace("postgres://", "postgresql+asyncpg://", 1)
     elif normalized.startswith("postgresql://"):
         normalized = normalized.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+    parts = urlsplit(normalized)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    sslmode = query.pop("sslmode", "").lower()
+    if sslmode == "require":
+        query["ssl"] = "require"
+
+    normalized = urlunsplit(
+        (
+            parts.scheme,
+            parts.netloc,
+            parts.path,
+            urlencode(query),
+            parts.fragment,
+        )
+    )
     return normalized
 
 
