@@ -14,6 +14,7 @@ from app.services.auth_db import (
     update_user_access,
     verify_user_credentials,
 )
+from app.services.email_service import send_signup_notification
 from db.database import get_db_session
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -105,6 +106,8 @@ async def signup(payload: AuthCredentials, db: AsyncSession = Depends(get_db_ses
             status_code=status.HTTP_409_CONFLICT,
             detail="An account with this email already exists.",
         )
+
+    await send_signup_notification(user["email"], bool(user.get("approved")))
 
     return {
         "user": user,
