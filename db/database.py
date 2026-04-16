@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from typing import AsyncIterator
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
@@ -9,9 +10,14 @@ from sqlalchemy.orm import DeclarativeBase
 
 load_dotenv()
 
+DEFAULT_SQLITE_PATH = Path(__file__).resolve().parents[1] / "culture_sim.db"
+
 
 def normalize_database_url(url: str) -> str:
     normalized = url.strip()
+    if normalized.startswith("sqlite:///") or normalized.startswith("sqlite+aiosqlite:///"):
+        return normalized.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
+
     if normalized.startswith("postgres://"):
         normalized = normalized.replace("postgres://", "postgresql+asyncpg://", 1)
     elif normalized.startswith("postgresql://"):
@@ -35,12 +41,11 @@ def normalize_database_url(url: str) -> str:
     return normalized
 
 
-DATABASE_URL = normalize_database_url(
-    os.getenv(
-        "DATABASE_URL",
-        "postgresql+asyncpg://postgres.project-ref:password@aws-0-region.pooler.supabase.com:5432/postgres?sslmode=require"
-    )
-)
+raw_database_url = os.getenv("DATABASE_URL", "").strip()
+if raw_database_url:
+    DATABASE_URL = normalize_database_url(raw_database_url)
+else:
+    DATABASE_URL = f"sqlite+aiosqlite:///{DEFAULT_SQLITE_PATH.as_posix()}"
 
 
 class Base(DeclarativeBase):
