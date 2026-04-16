@@ -1,17 +1,17 @@
-import json
-
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 import app.state as state
+from app.services.advisor_chat_agent import generate_advisor_reply
 from app.services.dimension_state_manager import CANONICAL_DIMENSIONS, apply_delta
-from app.services.pipeline import call_ai, call_ai_json
+from app.services.pipeline import call_ai_json
 
 router = APIRouter(prefix="/advisor")
 
 
 class AdvisorQuestion(BaseModel):
     question: str
+    previous_response_id: str | None = None
 
 
 def _infer_scope(text: str) -> str:
@@ -36,20 +36,11 @@ async def ask_advisor(payload: AdvisorQuestion):
             detail="No analysis available. Run a culture analysis first.",
         )
 
-    system_prompt = """
-You are Agent 0: the AI Culture Advisor.
-Answer ONLY using the provided analysis.
-"""
-
-    user_prompt = f"""
-FULL ANALYSIS:
-{json.dumps(state.LAST_ANALYSIS, indent=2)}
-
-USER QUESTION:
-{payload.question}
-"""
-
-    answer = call_ai(system_prompt, user_prompt)
+    answer, response_id = await generate_advisor_reply(
+        question=payload.question,
+        analysis=state.LAST_ANALYSIS,
+        previous_response_id=payload.previous_response_id,
+    )
 
     deltas_fallback = {slug: 0 for slug in CANONICAL_DIMENSIONS}
     deltas_prompt = f"""
@@ -111,4 +102,8 @@ Rules:
                 reason=reason,
             )
 
-    return {"answer": answer, "updated_dimensions": updated_dimensions}
+    return {
+        "answer": answer,
+        "response_id": response_id,
+        "updated_dimensions": updated_dimensions,
+    }
